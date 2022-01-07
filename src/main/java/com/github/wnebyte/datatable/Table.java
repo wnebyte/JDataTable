@@ -21,10 +21,10 @@ public class Table<T> extends AbstractTable<T> {
         return charSequence(' ', len);
     }
 
-    static <T> void fill(List<? super T> list, T t, int len) {
-        list.clear();
+    static <T> void fill(List<? super T> c, T t, int len) {
+        c.clear();
         for (int i = 0; i < len; i++) {
-            list.add(t);
+            c.add(t);
         }
     }
 
@@ -111,9 +111,17 @@ public class Table<T> extends AbstractTable<T> {
         }
 
         public Column(Formatter<T> fun, Alignment alignment) {
+            this(fun, alignment, DEFAULT_MINIMUM_SIZE);
+        }
+
+        public Column(Formatter<T> fun, int minimumSize) {
+            this(fun, DEFAULT_ALIGNMENT, minimumSize);
+        }
+
+        public Column(Formatter<T> fun, Alignment alignment, int minimumSize) {
             this.fun = fun;
             this.alignment = alignment;
-            this.minimumSize = DEFAULT_MINIMUM_SIZE;
+            this.minimumSize = minimumSize;
         }
 
         @Override
@@ -177,7 +185,7 @@ public class Table<T> extends AbstractTable<T> {
             if (headers.size() < columns.size()) {
                 pad(headers, columns.size() - headers.size());
             }
-            // iterate over columns for when columns.size() < headers.size();
+            // iterate over columns for when there are more headers than columns
             for (int col = 0; col < columns.size(); col++) {
                 Cell cell = headers.get(col);
                 cells[0][col] = cell;
@@ -196,6 +204,14 @@ public class Table<T> extends AbstractTable<T> {
         return cells;
     }
 
+    private int[] populateMaxCols() {
+        int[] maxCols = new int[columns.size()];
+        for (int col = 0; col < maxCols.length; col++) {
+            maxCols[col] = getMaxColLength(col);
+        }
+        return maxCols;
+    }
+
     @Override
     public void sync() {
         cells = populateCells();
@@ -204,12 +220,14 @@ public class Table<T> extends AbstractTable<T> {
         if (autoGrowColumnSize)
             setAutoGrowColumnSize();
 
+        maxCols = populateMaxCols();
+
         for (Cell[] value : cells) {
             StringBuilder s = new StringBuilder();
 
             for (int col = 0; col < value.length; col++) {
                 Cell cell = value[col];
-                int max = getMaxColLength(col);
+                int max = maxCols[col];
                 s.append(SEPARATOR_CHAR)
                         .append(Strings.WHITESPACE)
                         .append(whitespace(cell.getLeftPadding(max)))
@@ -223,7 +241,7 @@ public class Table<T> extends AbstractTable<T> {
         }
 
         List<String> box = new ArrayList<>(content.size());
-        String str = createCorneredRowSeparator();
+        String str = mkSeparator();
         fill(box, str, content.size());
         int j = 0;
         for (String s : box) {
@@ -233,12 +251,12 @@ public class Table<T> extends AbstractTable<T> {
         content.add(str);
     }
 
-    private String createCorneredRowSeparator() {
+    private String mkSeparator() {
         Cell[] value = cells[0];
         StringBuilder s = new StringBuilder();
 
         for (int col = 0; col < value.length; col++) {
-            int max = getMaxColLength(col);
+            int max = maxCols[col];
             s.append(CORNER_CHAR)
                     .append(OUTLINE_CHAR)
                     .append(charSequence(OUTLINE_CHAR, max))
@@ -282,6 +300,11 @@ public class Table<T> extends AbstractTable<T> {
     }
 
     @Override
+    public void setAutoGrowColumnSize(boolean value) {
+        this.autoGrowColumnSize = value;
+    }
+
+    @Override
     public void setMinimumColumnSize(int col, int value) {
         if (col <= columns.size() - 1) {
             Column<T> column = columns.get(col);
@@ -290,11 +313,6 @@ public class Table<T> extends AbstractTable<T> {
                 column.minimumSize = value;
             }
         }
-    }
-
-    @Override
-    public void setAutoGrowColumnSize(boolean value) {
-        this.autoGrowColumnSize = value;
     }
 
     @Override
