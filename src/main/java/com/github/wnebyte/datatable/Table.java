@@ -11,14 +11,14 @@ public class Table<T> extends AbstractTable<T> {
     ###########################
     */
 
-    static String charSequence(char c, int len) {
+    static String charSequenceOf(char c, int len) {
         char[] arr = new char[len];
         Arrays.fill(arr, c);
         return new String(arr);
     }
 
     static String whitespace(int len) {
-        return charSequence(' ', len);
+        return charSequenceOf(' ', len);
     }
 
     static <T> void fill(List<? super T> c, T t, int len) {
@@ -121,7 +121,19 @@ public class Table<T> extends AbstractTable<T> {
         public Column(Formatter<T> fun, Alignment alignment, int minimumSize) {
             this.fun = fun;
             this.alignment = alignment;
-            this.minimumSize = minimumSize;
+            setMinimumSize(minimumSize);
+        }
+
+        void setMinimumSize(int size) {
+            if (0 < size) {
+                this.minimumSize = (size % 2 == 0) ? size : size + 1;
+            } else {
+                this.minimumSize = 0;
+            }
+        }
+
+        int getMinimumSize() {
+            return minimumSize;
         }
 
         @Override
@@ -134,15 +146,21 @@ public class Table<T> extends AbstractTable<T> {
 
     /*
     ###########################
-    #          FIELDS         #
+    #      STATIC FIELDS      #
     ###########################
     */
 
-    public char SEPARATOR_CHAR = '|';
+    public static final char DEFAULT_SEPARATOR_CHAR = '|';
 
-    public char OUTLINE_CHAR = '-';
+    public static final char DEFAULT_BOX_CHAR = '-';
 
-    public char CORNER_CHAR = '+';
+    public static final char DEFAULT_CORNER_CHAR = '+';
+
+    /*
+    ###########################
+    #          FIELDS         #
+    ###########################
+    */
 
     private final List<Cell> headers;
 
@@ -154,9 +172,15 @@ public class Table<T> extends AbstractTable<T> {
 
     private Cell[][] cells;
 
-    private boolean autoGrowColumnSize = false;
-
     private int[] maxCols;
+
+    private boolean autoGrowColumnSize;
+
+    private char separatorChar;
+
+    private char boxChar;
+
+    private char cornerChar;
 
     /*
     ###########################
@@ -169,6 +193,10 @@ public class Table<T> extends AbstractTable<T> {
         this.columns = new ArrayList<>();
         this.rows = new ArrayList<>();
         this.content = new ArrayList<>();
+        this.autoGrowColumnSize = false;
+        this.separatorChar = DEFAULT_SEPARATOR_CHAR;
+        this.boxChar = DEFAULT_BOX_CHAR;
+        this.cornerChar = DEFAULT_CORNER_CHAR;
     }
 
     /*
@@ -180,7 +208,7 @@ public class Table<T> extends AbstractTable<T> {
     private Cell[][] populateCells() {
         Cell[][] cells = new Cell[rows.size() + (headers.isEmpty() ? 0 : 1)][columns.size()];
 
-        // transf headers
+        // transform headers
         if (!headers.isEmpty()) {
             if (headers.size() < columns.size()) {
                 pad(headers, columns.size() - headers.size());
@@ -192,7 +220,7 @@ public class Table<T> extends AbstractTable<T> {
             }
         }
 
-        // transf data
+        // transform data
         for (int row = 0; row < rows.size(); row++) {
             T data = rows.get(row);
             for (int col = 0; col < columns.size(); col++) {
@@ -204,6 +232,9 @@ public class Table<T> extends AbstractTable<T> {
         return cells;
     }
 
+    /**
+     * @return an array of ints consisting of each Columns largest Cell.
+     */
     private int[] populateMaxCols() {
         int[] maxCols = new int[columns.size()];
         for (int col = 0; col < maxCols.length; col++) {
@@ -228,13 +259,13 @@ public class Table<T> extends AbstractTable<T> {
             for (int col = 0; col < value.length; col++) {
                 Cell cell = value[col];
                 int max = maxCols[col];
-                s.append(SEPARATOR_CHAR)
+                s.append(separatorChar)
                         .append(Strings.WHITESPACE)
                         .append(whitespace(cell.getLeftPadding(max)))
                         .append(cell.text)
                         .append(Strings.WHITESPACE)
                         .append(whitespace(cell.getRightPadding(max)))
-                        .append((col == value.length - 1) ? SEPARATOR_CHAR : "");
+                        .append((col == value.length - 1) ? separatorChar : Strings.EMPTY);
             }
 
             content.add(s.toString());
@@ -257,11 +288,11 @@ public class Table<T> extends AbstractTable<T> {
 
         for (int col = 0; col < value.length; col++) {
             int max = maxCols[col];
-            s.append(CORNER_CHAR)
-                    .append(OUTLINE_CHAR)
-                    .append(charSequence(OUTLINE_CHAR, max))
-                    .append(OUTLINE_CHAR)
-                    .append((col == value.length - 1) ? CORNER_CHAR : "");
+            s.append(cornerChar)
+                    .append(boxChar)
+                    .append(charSequenceOf(boxChar, max))
+                    .append(boxChar)
+                    .append((col == value.length - 1) ? cornerChar : Strings.EMPTY);
         }
 
         return s.toString();
@@ -273,13 +304,16 @@ public class Table<T> extends AbstractTable<T> {
         for (Cell[] value : cells) {
             Cell cell = value[col];
             Column<T> column = columns.get(col);
-            int len = Math.max(cell.getLength(), column.minimumSize);
+            int len = Math.max(cell.getLength(), column.getMinimumSize());
             max = Math.max(len, max);
         }
 
         return max;
     }
 
+    /**
+     * @return the largest Cell/Column size.
+     */
     private int getMaxColLength() {
         int max = 0;
 
@@ -291,6 +325,9 @@ public class Table<T> extends AbstractTable<T> {
         return max;
     }
 
+    /**
+     * Sets the minimum size for each Column to the size of the largest Column.
+     */
     private void setAutoGrowColumnSize() {
         int max = getMaxColLength();
 
@@ -299,19 +336,37 @@ public class Table<T> extends AbstractTable<T> {
         }
     }
 
+    /**
+     * Specify whether the size for each Column should grow to the size of the largest Column.
+     * @param value the desired value.
+     */
     @Override
     public void setAutoGrowColumnSize(boolean value) {
         this.autoGrowColumnSize = value;
     }
 
+    /**
+     * Sets the <code>minimumSize</code> for the Column at the specified <code>index</code> to the specified
+     * <code>size</code>.
+     * @param index the index of the Column.
+     * @param size the desired size.
+     */
     @Override
-    public void setMinimumColumnSize(int col, int value) {
-        if (col <= columns.size() - 1) {
-            Column<T> column = columns.get(col);
-            if (0 < value) {
-                value = (value % 2 == 0) ? value : value + 1;
-                column.minimumSize = value;
-            }
+    public void setMinimumColumnSize(int index, int size) {
+        if (index <= columns.size() - 1) {
+            Column<T> column = columns.get(index);
+            column.setMinimumSize(size);
+        }
+    }
+
+    /**
+     * Sets the <code>minimumSize</code> for all existing Columns to the specified <code>size</code>.
+     * @param size the desired size.
+     */
+    @Override
+    public void setMinimumColumnSize(int size) {
+        for (int i = 0; i < columns.size(); i++) {
+            setMinimumColumnSize(i, size);
         }
     }
 
@@ -325,6 +380,10 @@ public class Table<T> extends AbstractTable<T> {
         headers.add(new Cell(header, alignment));
     }
 
+    public void addHeader(Cell header) {
+        headers.add(header);
+    }
+
     @Override
     public void setHeader(int index, String header) {
         headers.set(index, new Cell(header));
@@ -333,6 +392,10 @@ public class Table<T> extends AbstractTable<T> {
     @Override
     public void setHeader(int index, String header, Alignment alignment) {
         headers.set(index, new Cell(header, alignment));
+    }
+
+    public void setHeader(int index, Cell header) {
+        headers.set(index, header);
     }
 
     @Override
@@ -346,13 +409,41 @@ public class Table<T> extends AbstractTable<T> {
     }
 
     @Override
+    public void addColumn(Formatter<T> fun, int minimumSize) {
+        columns.add(new Column<>(fun, minimumSize));
+    }
+
+    @Override
+    public void addColumn(Formatter<T> fun, Alignment alignment, int minimumSize) {
+        columns.add(new Column<T>(fun, alignment, minimumSize));
+    }
+
+    public void addColumn(Column<T> column) {
+        columns.add(column);
+    }
+
+    @Override
     public void setColumn(int index, Formatter<T> fun) {
-        columns.set(index, new Column<>(fun));
+        columns.set(index, new Column<T>(fun));
     }
 
     @Override
     public void setColumn(int index, Formatter<T> fun, Alignment alignment) {
-        columns.set(index, new Column<>(fun, alignment));
+        columns.set(index, new Column<T>(fun, alignment));
+    }
+
+    @Override
+    public void setColumn(int index, Formatter<T> fun, int minimumSize) {
+        columns.set(index, new Column<T>(fun, minimumSize));
+    }
+
+    @Override
+    public void setColumn(int index, Formatter<T> fun, Alignment alignment, int minimumSize) {
+        columns.set(index, new Column<T>(fun, alignment, minimumSize));
+    }
+
+    public void setColumn(int index, Column<T> column) {
+        columns.set(index, column);
     }
 
     @Override
@@ -368,6 +459,34 @@ public class Table<T> extends AbstractTable<T> {
     @Override
     public void addAllRows(Collection<T> data) {
         rows.addAll(data);
+    }
+
+    public void setCornerChar(char c) {
+        this.cornerChar = c;
+    }
+
+    public void setSeparatorChar(char c) {
+        this.separatorChar = c;
+    }
+
+    public void setBoxChar(char c) {
+        this.boxChar = c;
+    }
+
+    public List<String> getContent() {
+        return new ArrayList<>(content);
+    }
+
+    public List<Cell> getHeaders() {
+        return Collections.unmodifiableList(headers);
+    }
+
+    public List<Column<T>> getColumns() {
+        return Collections.unmodifiableList(columns);
+    }
+
+    public List<T> getRows() {
+        return Collections.unmodifiableList(rows);
     }
 
     @Override

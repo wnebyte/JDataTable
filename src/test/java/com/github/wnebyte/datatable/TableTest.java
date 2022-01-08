@@ -38,34 +38,15 @@ public class TableTest {
         return i;
     }
 
-    /*
-    public static void main(String[] args) {
-        Table<Person> table = new Table<>();
-        table.addHeader("FIRST NAME", Alignment.LEFT);
-        table.addHeader("LAST NAME", Alignment.CENTER);
-        table.addHeader("AGE", Alignment.CENTER);
-        table.addColumn(Person::getFirstName, Alignment.RIGHT);
-        table.addColumn(Person::getLastName, Alignment.RIGHT);
-        table.addColumn(person -> String.valueOf(person.getAge()), Alignment.CENTER);
-        table.addRow(new Person("Anna", "Anka", 55));
-        table.addRow(new Person("Lars", "Larsson", 75));
-        table.addRow(new Person("Max", "B", 25));
-        table.addRow(new Person("Henrik", "Maximilian", 56));
-        table.addRow(new Person("Pernilla", "Gunnarsson-Axelsson", 76));
-        table.sync();
-        System.out.println(table);
-    }
-     */
-
     public static void main(String[] args) {
         List<Person> data = getTestData(25);
         Table<Person> table = new Table<>();
-        table.addHeader("FIRST NAME", Alignment.CENTER);
+        table.addHeader(new Table.Cell("FIRST NAME", Alignment.CENTER));
         table.addHeader("LAST NAME", Alignment.CENTER);
         table.addHeader("AGE", Alignment.CENTER);
         table.addColumn(Person::getFirstName, Alignment.RIGHT);
         table.addColumn(Person::getLastName, Alignment.RIGHT);
-        table.addColumn(p -> String.valueOf(p.getAge()), Alignment.CENTER);
+        table.addColumn(new Table.Column<>(p -> String.valueOf(p.getAge()), Alignment.CENTER, 2));
         table.setAutoGrowColumnSize(true);
         table.addAllRows(data);
         table.sync();
@@ -79,13 +60,17 @@ public class TableTest {
     }
 
     private static class Person {
+
+        static int counter = 0;
+
         String firstName, lastName;
-        int age;
+        int age, index;
 
         Person(String firstName, String lastName, int age) {
             this.firstName = firstName;
             this.lastName = lastName;
             this.age = age;
+            setIndex(counter++);
         }
 
         String getFirstName() { return firstName; }
@@ -93,5 +78,9 @@ public class TableTest {
         String getLastName() { return lastName; }
 
         int getAge() { return age; }
+
+        int getIndex() { return index; }
+
+        void setIndex(int index) { this.index = index; }
     }
 }
